@@ -1,4 +1,4 @@
-from flask import render_template, url_for, flash, redirect, request
+from flask import render_template, url_for, flash, redirect, request, abort
 from flaskblog import app, db, bcrypt
 from flaskblog.forms import RegistrationForm, LoginForm, UpdateAccountForm, PostForm
 from flaskblog.models import User, Post
@@ -58,14 +58,13 @@ def logout():
 
 
 def save_picture(form_picture):
-    random_hex = uuid.uuid4().hex
-    _, f_ext = os.path.splitext(form_picture.filename)
-    picture_fn = random_hex + f_ext
+    random_hex = int(random.random() * 1000000)
+    f_name, f_ext = os.path.splitext(form_picture.filename) # can use _, instead of f_name since will not use it.
+    picture_fn = str(random_hex) + f_ext
     picture_path = os.path.join(app.root_path, 'static/profile_pics', picture_fn)
-
-    output_size = (125, 125)
-    i = Image.open(form_picture)
-    i.thumbnail(output_size)
+    # output_size = (125, 125)
+    # i = Image.open(form_picture)
+    # i.thumbnail(output_size)
     form_picture.save(picture_path)
     return picture_fn
 
@@ -77,6 +76,7 @@ def account():
     if form.validate_on_submit():
         if form.picture.data:
             picture_file = save_picture(form.picture.data)
+            print(picture_file)
             current_user.image_file = picture_file
         current_user.username = form.username.data
         current_user.email = form.email.data
@@ -101,3 +101,39 @@ def new_post():
         flash('Your post has been created!', 'success')
         return redirect(url_for('home'))
     return render_template('create_post.html', title='New Post', form=form)
+
+@app.route("/post/<int:post_id>")
+def post(post_id):
+    post = Post.query.get_or_404(post_id)
+    return render_template('post.html', title='post.title', post=post, legend="Create Post")
+
+
+@app.route("/post/<int:post_id>/update", methods=['GET', 'POST'])
+@login_required
+def update_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        abort(403)
+    form = PostForm()
+    if form.validate_on_submit():
+        post.title = form.title.data
+        db.session.commit()
+        flash('Your post has been updated!', 'success')
+        return redirect(url_for('post', post_id = post.id))
+    elif request.method == 'GET':
+        form.title.data = post.title
+        form .content.data = post.content
+    return render_template('create_post.html', title='Update Post',
+                           form=form, legend="Update Post")
+
+
+@app.route("/post/<int:post_id>/delete", methods=['POST'])  #bec only accept when they submit from that post
+@login_required
+def delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        abort(403)
+    db.session.delete(post)
+    db.session.commit()
+    flash('Your post has been deleted!', 'success')
+    return redirect(url_for('home'))
