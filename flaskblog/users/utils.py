@@ -3,7 +3,7 @@ import os
 from PIL import Image
 from flask import current_app
 from flask_mail import Message
-from flaskblog import mail
+
 
 def save_picture(form_picture):
     random_hex = int(random.random() * 1000000)
